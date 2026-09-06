@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar | Ebook Platform</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(255,122,24,.16), transparent 40%),
+        #070707;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .box {
+      width: 100%;
+      max-width: 430px;
+      background: #111;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 22px;
+      padding: 38px;
+      box-shadow: 0 25px 70px rgba(0,0,0,.45);
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 35px;
+    }
+
+    .logo span {
+      color: #ff7a18;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -1px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      color: #ccc;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 15px;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      border: 1px solid #292929;
+      background: #181818;
+      color: #fff;
+      outline: none;
+      font-size: 15px;
+    }
+
+    input:focus {
+      border-color: #ff7a18;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ff7a18, #ff9d4d);
+      color: #080808;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .message {
+      display: none;
+      margin-top: 18px;
+      padding: 13px;
+      border-radius: 9px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .error {
+      display: block;
+      background: rgba(255,70,70,.1);
+      border: 1px solid rgba(255,70,70,.2);
+      color: #ff8b8b;
+    }
+
+    .success {
+      display: block;
+      background: rgba(39,209,127,.1);
+      border: 1px solid rgba(39,209,127,.2);
+      color: #6de2a9;
+    }
+
+    .links {
+      text-align: center;
+      margin-top: 25px;
+      color: #777;
+      font-size: 14px;
+    }
+
+    .links a {
+      color: #ff8a35;
+      text-decoration: none;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 25px;
+      color: #666;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .back:hover,
+    .links a:hover {
+      color: #ff9d4d;
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="box">
+
+    <div class="logo">
+      EBOOK<span>PLATFORM</span>
+    </div>
+
+    <h1>Entrar</h1>
+
+    <p class="subtitle">
+      Entre na sua conta para acessar seus conteúdos.
+    </p>
+
+    <form id="loginForm">
+
+      <label for="email">E-mail</label>
+
+      <input
+        type="email"
+        id="email"
+        placeholder="seu@email.com"
+        autocomplete="email"
+        required
+      >
+
+      <label for="password">Senha</label>
+
+      <input
+        type="password"
+        id="password"
+        placeholder="Sua senha"
+        autocomplete="current-password"
+        required
+      >
+
+      <button type="submit" id="loginButton">
+        ENTRAR
+      </button>
+
+    </form>
+
+    <div id="message" class="message"></div>
+
+    <div class="links">
+      Ainda não tem uma conta?
+      <a href="cadastro.html">Criar conta</a>
+    </div>
+
+    <a class="back" href="index.html">
+      ← Voltar para a página inicial
+    </a>
+
+  </main>
+
+  <script type="module">
+
+    import { createClient } from
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const SUPABASE_URL =
+      "https://ezwwsywvmjteqndxljib.supabase.co";
+
+    const SUPABASE_KEY =
+      "sb_publishable_wXLh156Rox5-9r2iPBZiUw_WxtgKHAb";
+
+    const supabase = createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+    const form = document.getElementById("loginForm");
+    const button = document.getElementById("loginButton");
+    const message = document.getElementById("message");
+
+    function showMessage(text, type) {
+
+      message.textContent = text;
+
+      message.className =
+        "message " + type;
+
+    }
+
+    form.addEventListener("submit", async (event) => {
+
+      event.preventDefault();
+
+      const email =
+        document.getElementById("email").value.trim();
+
+      const password =
+        document.getElementById("password").value;
+
+      button.disabled = true;
+      button.textContent = "ENTRANDO...";
+
+      message.className = "message";
+
+      const { error } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+      if (error) {
+
+        showMessage(
+          "E-mail ou senha incorretos. Verifique os dados e tente novamente.",
+          "error"
+        );
+
+        button.disabled = false;
+        button.textContent = "ENTRAR";
+
+        return;
+      }
+
+      showMessage(
+        "Login realizado. Redirecionando...",
+        "success"
+      );
+
+      setTimeout(() => {
+
+        window.location.href = "membros.html";
+
+      }, 700);
+
+    });
+
+  </script>
+
+</body>
+</html>
