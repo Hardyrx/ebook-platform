@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Área de Membros | Ebook Platform</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #08090d;
+      color: #ffffff;
+      min-height: 100vh;
+    }
+
+    header {
+      height: 72px;
+      border-bottom: 1px solid #22252d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6%;
+      background: #0b0c11;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      color: #8b5cf6;
+    }
+
+    .user-area {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    #userName {
+      color: #b7bbc7;
+      font-size: 14px;
+    }
+
+    .logout {
+      border: 1px solid #30343d;
+      background: #15171d;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .logout:hover {
+      background: #20232b;
+    }
+
+    main {
+      width: 90%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 55px 0 80px;
+    }
+
+    .welcome {
+      margin-bottom: 45px;
+    }
+
+    .welcome small {
+      color: #8b5cf6;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-size: 12px;
+    }
+
+    .welcome h1 {
+      font-size: 42px;
+      margin-top: 10px;
+      letter-spacing: -1.5px;
+    }
+
+    .welcome p {
+      margin-top: 12px;
+      color: #9297a5;
+      font-size: 16px;
+    }
+
+    .section-title {
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    #loading {
+      color: #9297a5;
+      padding: 30px 0;
+    }
+
+    #contentArea {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: #101218;
+      border: 1px solid #242832;
+      border-radius: 16px;
+      padding: 25px;
+      transition: 0.2s;
+    }
+
+    .card:hover {
+      border-color: #3a3f4c;
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      background: #181320;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 23px;
+      margin-bottom: 18px;
+    }
+
+    .card h3 {
+      font-size: 19px;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      color: #9297a5;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .access-button {
+      display: inline-block;
+      background: #8b5cf6;
+      color: white;
+      text-decoration: none;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 9px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .access-button:hover {
+      background: #7c4de3;
+    }
+
+    .empty {
+      background: #101218;
+      border: 1px dashed #30343d;
+      border-radius: 16px;
+      padding: 45px 25px;
+      text-align: center;
+    }
+
+    .empty-icon {
+      font-size: 40px;
+      margin-bottom: 15px;
+    }
+
+    .empty h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .empty p {
+      color: #9297a5;
+      max-width: 500px;
+      margin: 0 auto 20px;
+      line-height: 1.6;
+    }
+
+    .buy-button {
+      display: inline-block;
+      background: #ffffff;
+      color: #08090d;
+      padding: 12px 20px;
+      border-radius: 9px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .error {
+      background: #1c1012;
+      border: 1px solid #55252b;
+      color: #ff9ca5;
+      padding: 18px;
+      border-radius: 10px;
+    }
+
+    footer {
+      border-top: 1px solid #22252d;
+      padding: 25px;
+      text-align: center;
+      color: #666b78;
+      font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      header {
+        padding: 0 5%;
+      }
+
+      #userName {
+        display: none;
+      }
+
+      main {
+        padding-top: 40px;
+      }
+
+      .welcome h1 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+
+    <div class="logo">
+      EBOOK <span>PLATFORM</span>
+    </div>
+
+    <div class="user-area">
+      <span id="userName">Carregando...</span>
+
+      <button class="logout" onclick="logout()">
+        Sair
+      </button>
+    </div>
+
+  </header>
+
+
+  <main>
+
+    <section class="welcome">
+
+      <small>Área exclusiva</small>
+
+      <h1>
+        Bem-vindo, <span id="welcomeName">...</span>
+      </h1>
+
+      <p>
+        Aqui estão os conteúdos liberados para sua conta.
+      </p>
+
+    </section>
+
+
+    <section>
+
+      <h2 class="section-title">
+        Meus conteúdos
+      </h2>
+
+      <div id="loading">
+        Verificando seus acessos...
+      </div>
+
+      <div id="contentArea"></div>
+
+    </section>
+
+  </main>
+
+
+  <footer>
+    © 2026 Ebook Platform. Todos os direitos reservados.
+  </footer>
+
+
+  <script type="module">
+
+    import { createClient } from
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+
+    // ==========================================
+    // SUPABASE
+    // ==========================================
+
+    const SUPABASE_URL =
+      'https://ezwwsywvmjteqndxljib.supabase.co';
+
+    const SUPABASE_KEY =
+      'sb_publishable_wXLh156Rox5-9r2iPBZiUw_WxtgKHAb';
+
+
+    const supabase =
+      createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
+
+
+    // ==========================================
+    // ELEMENTOS
+    // ==========================================
+
+    const loading =
+      document.getElementById('loading');
+
+    const contentArea =
+      document.getElementById('contentArea');
+
+    const userName =
+      document.getElementById('userName');
+
+    const welcomeName =
+      document.getElementById('welcomeName');
+
+
+    // ==========================================
+    // INICIALIZAÇÃO
+    // ==========================================
+
+    async function init() {
+
+      try {
+
+        // Verifica se existe usuário logado
+        const {
+          data: {
+            user
+          }
+        } = await supabase.auth.getUser();
+
+
+        // Se não estiver logado,
+        // volta para a tela de login.
+
+        if (!user) {
+
+          window.location.href =
+            'login.html';
+
+          return;
+        }
+
+
+        // ======================================
+        // NOME DO USUÁRIO
+        // ======================================
+
+        const name =
+          user.user_metadata?.name ||
+          user.email?.split('@')[0] ||
+          'Cliente';
+
+
+        userName.textContent =
+          name;
+
+        welcomeName.textContent =
+          name;
+
+
+        // ======================================
+        // BUSCAR ACESSOS
+        // ======================================
+
+        const {
+          data: entitlements,
+          error: entitlementError
+        } = await supabase
+
+          .from('entitlements')
+
+          .select(`
+            id,
+            active,
+            product_id,
+            products (
+              id,
+              name,
+              slug,
+              description
+            )
+          `)
+
+          .eq('user_id', user.id)
+
+          .eq('active', true);
+
+
+        if (entitlementError) {
+
+          throw entitlementError;
+
+        }
+
+
+        loading.style.display =
+          'none';
+
+
+        // ======================================
+        // NENHUM PRODUTO
+        // ======================================
+
+        if (
+          !entitlements ||
+          entitlements.length === 0
+        ) {
+
+          contentArea.innerHTML = `
+
+            <div class="empty">
+
+              <div class="empty-icon">
+                📚
+              </div>
+
+              <h3>
+                Nenhum conteúdo liberado
+              </h3>
+
+              <p>
+                Você ainda não possui nenhum
+                produto liberado nesta conta.
+              </p>
+
+              <a
+                href="index.html"
+                class="buy-button"
+              >
+                Ver produtos
+              </a>
+
+            </div>
+
+          `;
+
+          return;
+        }
+
+
+        // ======================================
+        // MOSTRAR PRODUTOS
+        // ======================================
+
+        contentArea.innerHTML = '';
+
+
+        for (
+          const entitlement of entitlements
+        ) {
+
+          const product =
+            entitlement.products;
+
+
+          if (!product) {
+            continue;
+          }
+
+
+          const card =
+            document.createElement('div');
+
+          card.className =
+            'card';
+
+
+          card.innerHTML = `
+
+            <div class="card-icon">
+              📖
+            </div>
+
+            <h3>
+              ${escapeHTML(product.name)}
+            </h3>
+
+            <p>
+              ${escapeHTML(
+                product.description ||
+                'Conteúdo exclusivo para membros.'
+              )}
+            </p>
+
+            <button
+              class="access-button"
+              onclick="openProduct('${product.id}')"
+            >
+              Acessar conteúdo
+            </button>
+
+          `;
+
+
+          contentArea.appendChild(card);
+
+        }
+
+
+      } catch (error) {
+
+        console.error(
+          'Erro:',
+          error
+        );
+
+
+        loading.style.display =
+          'none';
+
+
+        contentArea.innerHTML = `
+
+          <div class="error">
+
+            Não foi possível carregar
+            seus conteúdos.
+
+          </div>
+
+        `;
+
+      }
+
+    }
+
+
+    // ==========================================
+    // ABRIR PRODUTO
+    // ==========================================
+
+    window.openProduct =
+      async function(productId) {
+
+        /*
+          Nesta etapa ainda não criamos
+          a página individual do ebook.
+
+          Por enquanto mostramos uma mensagem.
+
+          Depois vamos conectar isso ao
+          Supabase Storage e liberar o PDF
+          somente para quem comprou.
+        */
+
+        alert(
+          'Seu conteúdo está liberado. A página do ebook será conectada na próxima etapa.'
+        );
+
+      };
+
+
+    // ==========================================
+    // LOGOUT
+    // ==========================================
+
+    window.logout =
+      async function() {
+
+        await supabase.auth.signOut();
+
+        window.location.href =
+          'login.html';
+
+      };
+
+
+    // ==========================================
+    // SEGURANÇA BÁSICA DE HTML
+    // ==========================================
+
+    function escapeHTML(value) {
+
+      return String(value)
+
+        .replaceAll('&', '&amp;')
+
+        .replaceAll('<', '&lt;')
+
+        .replaceAll('>', '&gt;')
+
+        .replaceAll('"', '&quot;')
+
+        .replaceAll("'", '&#039;');
+
+    }
+
+
+    // ==========================================
+    // START
+    // ==========================================
+
+    init();
+
+  </script>
+
+</body>
+</html>
