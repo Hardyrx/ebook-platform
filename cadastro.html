@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Criar conta | Ebook Platform</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(255,122,24,.16), transparent 40%),
+        #070707;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .box {
+      width: 100%;
+      max-width: 430px;
+      background: #111;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 22px;
+      padding: 38px;
+      box-shadow: 0 25px 70px rgba(0,0,0,.45);
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 35px;
+    }
+
+    .logo span {
+      color: #ff7a18;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -1px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      color: #ccc;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 15px;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      border: 1px solid #292929;
+      background: #181818;
+      color: #fff;
+      outline: none;
+      font-size: 15px;
+    }
+
+    input:focus {
+      border-color: #ff7a18;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ff7a18, #ff9d4d);
+      color: #080808;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .message {
+      display: none;
+      margin-top: 18px;
+      padding: 13px;
+      border-radius: 9px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .error {
+      display: block;
+      background: rgba(255,70,70,.1);
+      border: 1px solid rgba(255,70,70,.2);
+      color: #ff8b8b;
+    }
+
+    .success {
+      display: block;
+      background: rgba(39,209,127,.1);
+      border: 1px solid rgba(39,209,127,.2);
+      color: #6de2a9;
+    }
+
+    .links {
+      text-align: center;
+      margin-top: 25px;
+      color: #777;
+      font-size: 14px;
+    }
+
+    .links a {
+      color: #ff8a35;
+      text-decoration: none;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 25px;
+      color: #666;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .back:hover,
+    .links a:hover {
+      color: #ff9d4d;
+    }
+
+    .password-info {
+      margin-top: -8px;
+      margin-bottom: 18px;
+      color: #666;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="box">
+
+    <div class="logo">
+      EBOOK<span>PLATFORM</span>
+    </div>
+
+    <h1>Criar conta</h1>
+
+    <p class="subtitle">
+      Crie sua conta para acessar seus conteúdos digitais.
+    </p>
+
+    <form id="signupForm">
+
+      <label for="name">Nome</label>
+
+      <input
+        type="text"
+        id="name"
+        placeholder="Seu nome"
+        autocomplete="name"
+        required
+      >
+
+      <label for="email">E-mail</label>
+
+      <input
+        type="email"
+        id="email"
+        placeholder="seu@email.com"
+        autocomplete="email"
+        required
+      >
+
+      <label for="password">Senha</label>
+
+      <input
+        type="password"
+        id="password"
+        placeholder="Crie uma senha"
+        autocomplete="new-password"
+        minlength="8"
+        required
+      >
+
+      <div class="password-info">
+        Use pelo menos 8 caracteres, incluindo maiúscula,
+        minúscula, número e símbolo.
+      </div>
+
+      <button type="submit" id="signupButton">
+        CRIAR MINHA CONTA
+      </button>
+
+    </form>
+
+    <div id="message" class="message"></div>
+
+    <div class="links">
+      Já possui uma conta?
+      <a href="login.html">Entrar</a>
+    </div>
+
+    <a class="back" href="index.html">
+      ← Voltar para a página inicial
+    </a>
+
+  </main>
+
+  <script type="module">
+
+    import { createClient } from
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const SUPABASE_URL =
+      "https://ezwwsywvmjteqndxljib.supabase.co";
+
+    const SUPABASE_KEY =
+      "sb_publishable_wXLh156Rox5-9r2iPBZiUw_WxtgKHAb";
+
+    const supabase = createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+    const form =
+      document.getElementById("signupForm");
+
+    const button =
+      document.getElementById("signupButton");
+
+    const message =
+      document.getElementById("message");
+
+    function showMessage(text, type) {
+
+      message.textContent = text;
+
+      message.className =
+        "message " + type;
+
+    }
+
+    function validatePassword(password) {
+
+      const hasLength =
+        password.length >= 8;
+
+      const hasLowercase =
+        /[a-z]/.test(password);
+
+      const hasUppercase =
+        /[A-Z]/.test(password);
+
+      const hasNumber =
+        /[0-9]/.test(password);
+
+      const hasSymbol =
+        /[^A-Za-z0-9]/.test(password);
+
+      return (
+        hasLength &&
+        hasLowercase &&
+        hasUppercase &&
+        hasNumber &&
+        hasSymbol
+      );
+    }
+
+    form.addEventListener("submit", async (event) => {
+
+      event.preventDefault();
+
+      const name =
+        document.getElementById("name").value.trim();
+
+      const email =
+        document.getElementById("email").value.trim();
+
+      const password =
+        document.getElementById("password").value;
+
+      if (!validatePassword(password)) {
+
+        showMessage(
+          "A senha precisa ter pelo menos 8 caracteres, incluindo maiúscula, minúscula, número e símbolo.",
+          "error"
+        );
+
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "CRIANDO CONTA...";
+
+      message.className = "message";
+
+      const { data, error } =
+        await supabase.auth.signUp({
+
+          email,
+          password,
+
+          options: {
+            data: {
+              name: name
+            },
+
+            emailRedirectTo:
+              "https://ebook-platform-jbgl.vercel.app/login.html"
+          }
+
+        });
+
+      if (error) {
+
+        showMessage(
+          error.message,
+          "error"
+        );
+
+        button.disabled = false;
+        button.textContent =
+          "CRIAR MINHA CONTA";
+
+        return;
+      }
+
+      if (data.user) {
+
+        showMessage(
+          "Conta criada com sucesso! Agora você já pode entrar.",
+          "success"
+        );
+
+        setTimeout(() => {
+
+          window.location.href =
+            "login.html";
+
+        }, 1500);
+
+      }
+
+    });
+
+  </script>
+
+</body>
+</html>
