@@ -1,9 +1,17 @@
-const crypto = require("crypto");
+const {
+  WebhookSignatureValidator,
+  InvalidWebhookSignatureError,
+} = require("mercadopago");
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
-const MERCADOPAGO_WEBHOOK_SECRET = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const MERCADOPAGO_ACCESS_TOKEN =
+  process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+const MERCADOPAGO_WEBHOOK_SECRET =
+  process.env.MERCADOPAGO_WEBHOOK_SECRET;
 
 const PRODUCTS = {
   "97.90": {
@@ -17,83 +25,113 @@ const PRODUCTS = {
   },
 };
 
-function supabaseRequest(path, options = {}) {
+/* =========================
+   SUPABASE
+========================= */
+
+async function supabaseRequest(path, options = {}) {
   return fetch(`${SUPABASE_URL}${path}`, {
     ...options,
+
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+
+      Authorization:
+        `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+
       "Content-Type": "application/json",
+
       ...(options.headers || {}),
     },
   });
 }
 
+/* =========================
+   VALIDAR WEBHOOK MERCADO PAGO
+========================= */
+
 function verifyMercadoPagoSignature(req) {
   if (!MERCADOPAGO_WEBHOOK_SECRET) {
+    console.error(
+      "MERCADOPAGO_WEBHOOK_SECRET não configurado."
+    );
+
     return false;
   }
 
-  const xSignature = req.headers["x-signature"];
-  const xRequestId = req.headers["x-request-id"];
+  const xSignature =
+    req.headers["x-signature"];
 
-  if (!xSignature || !xRequestId) {
-    return false;
-  }
+  const xRequestId =
+    req.headers["x-request-id"];
 
-  const parts = xSignature.split(",");
-
-  let ts = null;
-  let v1 = null;
-
-  for (const part of parts) {
-    const [key, value] = part.split("=");
-
-    if (key === "ts") {
-      ts = value;
-    }
-
-    if (key === "v1") {
-      v1 = value;
-    }
-  }
-
-  if (!ts || !v1) {
-    return false;
-  }
+  /*
+   * IMPORTANTE:
+   * O Mercado Pago usa data.id da QUERY STRING
+   * para validar a assinatura.
+   */
 
   const dataId =
-    req.body?.data?.id ||
-    req.query?.["data.id"] ||
-    req.query?.id;
+    req.query?.["data.id"];
 
-  if (!dataId) {
+  if (!xSignature || !xRequestId || !dataId) {
+    console.error(
+      "Dados necessários para validar assinatura ausentes.",
+      {
+        hasSignature: !!xSignature,
+        hasRequestId: !!xRequestId,
+        dataId,
+      }
+    );
+
     return false;
   }
 
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  try {
+    WebhookSignatureValidator.validate({
+      xSignature,
+      xRequestId,
+      dataId: String(dataId),
+      secret: MERCADOPAGO_WEBHOOK_SECRET,
+    });
 
-  const generatedSignature = crypto
-    .createHmac("sha256", MERCADOPAGO_WEBHOOK_SECRET)
-    .update(manifest)
-    .digest("hex");
+    return true;
 
-  if (generatedSignature.length !== v1.length) {
+  } catch (error) {
+
+    if (
+      error instanceof
+      InvalidWebhookSignatureError
+    ) {
+      console.error(
+        "Assinatura do Mercado Pago inválida."
+      );
+
+      return false;
+    }
+
+    console.error(
+      "Erro ao validar assinatura:",
+      error
+    );
+
     return false;
   }
-
-  return crypto.timingSafeEqual(
-    Buffer.from(generatedSignature),
-    Buffer.from(v1)
-  );
 }
+
+/* =========================
+   BUSCAR PAGAMENTO
+========================= */
 
 async function getPayment(paymentId) {
   const response = await fetch(
     `https://api.mercadopago.com/v1/payments/${paymentId}`,
     {
+      method: "GET",
+
       headers: {
-        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+        Authorization:
+          `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
       },
     }
   );
@@ -108,6 +146,10 @@ async function getPayment(paymentId) {
 
   return response.json();
 }
+
+/* =========================
+   ENCONTRAR USUÁRIO PELO EMAIL
+========================= */
 
 async function findUserByEmail(email) {
   const response = await supabaseRequest(
@@ -128,12 +170,17 @@ async function findUserByEmail(email) {
 
   return (
     users.find(
-      user =>
+      (user) =>
         user.email &&
-        user.email.toLowerCase() === email.toLowerCase()
+        user.email.toLowerCase() ===
+          email.toLowerCase()
     ) || null
   );
 }
+
+/* =========================
+   VERIFICAR COMPRA EXISTENTE
+========================= */
 
 async function findExistingPurchase(paymentId) {
   const response = await supabaseRequest(
@@ -155,6 +202,10 @@ async function findExistingPurchase(paymentId) {
   return data[0] || null;
 }
 
+/* =========================
+   CRIAR PURCHASE
+========================= */
+
 async function createPurchase({
   userId,
   productId,
@@ -163,24 +214,34 @@ async function createPurchase({
   amount,
   status,
 }) {
-  const response = await supabaseRequest("/rest/v1/purchases", {
-    method: "POST",
+  const response = await supabaseRequest(
+    "/rest/v1/purchases",
+    {
+      method: "POST",
 
-    headers: {
-      Prefer: "return=representation",
-    },
+      headers: {
+        Prefer: "return=representation",
+      },
 
-    body: JSON.stringify({
-      user_id: userId,
-      product_id: productId,
-      mp_payment_id: String(paymentId),
-      mp_preference_id: preferenceId
-        ? String(preferenceId)
-        : null,
-      amount,
-      status,
-    }),
-  });
+      body: JSON.stringify({
+        user_id: userId,
+
+        product_id: productId,
+
+        mp_payment_id:
+          String(paymentId),
+
+        mp_preference_id:
+          preferenceId
+            ? String(preferenceId)
+            : null,
+
+        amount,
+
+        status,
+      }),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
@@ -193,7 +254,14 @@ async function createPurchase({
   return response.json();
 }
 
-async function findEntitlement(userId, productId) {
+/* =========================
+   BUSCAR ENTITLEMENT
+========================= */
+
+async function findEntitlement(
+  userId,
+  productId
+) {
   const response = await supabaseRequest(
     `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(
       userId
@@ -215,33 +283,49 @@ async function findEntitlement(userId, productId) {
   return data[0] || null;
 }
 
-async function activateEntitlement(userId, productId) {
-  const existing = await findEntitlement(
-    userId,
-    productId
-  );
+/* =========================
+   ATIVAR ENTITLEMENT
+========================= */
 
-  if (existing) {
-    const response = await supabaseRequest(
-      `/rest/v1/entitlements?id=eq.${encodeURIComponent(
-        existing.id
-      )}`,
-      {
-        method: "PATCH",
-
-        headers: {
-          Prefer: "return=representation",
-        },
-
-        body: JSON.stringify({
-          active: true,
-          revoked_at: null,
-        }),
-      }
+async function activateEntitlement(
+  userId,
+  productId
+) {
+  const existing =
+    await findEntitlement(
+      userId,
+      productId
     );
 
+  /*
+   * Se já existe, apenas reativa.
+   */
+
+  if (existing) {
+    const response =
+      await supabaseRequest(
+        `/rest/v1/entitlements?id=eq.${encodeURIComponent(
+          existing.id
+        )}`,
+        {
+          method: "PATCH",
+
+          headers: {
+            Prefer:
+              "return=representation",
+          },
+
+          body: JSON.stringify({
+            active: true,
+
+            revoked_at: null,
+          }),
+        }
+      );
+
     if (!response.ok) {
-      const text = await response.text();
+      const text =
+        await response.text();
 
       throw new Error(
         `Erro ao reativar entitlement: ${response.status} ${text}`
@@ -251,27 +335,39 @@ async function activateEntitlement(userId, productId) {
     return;
   }
 
-  const response = await supabaseRequest(
-    "/rest/v1/entitlements",
-    {
-      method: "POST",
+  /*
+   * Se não existe, cria.
+   */
 
-      headers: {
-        Prefer: "return=representation",
-      },
+  const response =
+    await supabaseRequest(
+      "/rest/v1/entitlements",
+      {
+        method: "POST",
 
-      body: JSON.stringify({
-        user_id: userId,
-        product_id: productId,
-        active: true,
-        granted_at: new Date().toISOString(),
-        revoked_at: null,
-      }),
-    }
-  );
+        headers: {
+          Prefer:
+            "return=representation",
+        },
+
+        body: JSON.stringify({
+          user_id: userId,
+
+          product_id: productId,
+
+          active: true,
+
+          granted_at:
+            new Date().toISOString(),
+
+          revoked_at: null,
+        }),
+      }
+    );
 
   if (!response.ok) {
-    const text = await response.text();
+    const text =
+      await response.text();
 
     throw new Error(
       `Erro ao criar entitlement: ${response.status} ${text}`
@@ -279,88 +375,147 @@ async function activateEntitlement(userId, productId) {
   }
 }
 
-module.exports = async (req, res) => {
+/* =========================
+   WEBHOOK
+========================= */
+
+module.exports = async (
+  req,
+  res
+) => {
+
+  /*
+   * Somente POST.
+   */
+
   if (req.method !== "POST") {
     return res.status(405).json({
-      error: "Método não permitido",
+      error:
+        "Método não permitido",
     });
   }
 
   try {
+
     /*
-     * O Mercado Pago pode enviar notificações
-     * que não sejam pagamentos.
+     * Identifica o tipo de notificação.
      */
 
     const type =
       req.body?.type ||
       req.body?.topic;
 
+    /*
+     * Ignora eventos que não sejam payment.
+     */
+
     if (type !== "payment") {
+      console.log(
+        "Evento ignorado:",
+        type
+      );
+
       return res.status(200).json({
         received: true,
+
         ignored: true,
+
+        type,
       });
     }
 
     /*
-     * Validação da assinatura do webhook.
+     * Validação da assinatura.
      */
 
     const signatureValid =
-      verifyMercadoPagoSignature(req);
-
-    if (!signatureValid) {
-      console.error(
-        "Webhook Mercado Pago rejeitado: assinatura inválida."
+      verifyMercadoPagoSignature(
+        req
       );
 
+    if (!signatureValid) {
       return res.status(401).json({
-        error: "Assinatura inválida.",
+        error:
+          "Assinatura inválida.",
       });
     }
 
+    /*
+     * O ID oficial vem da query string.
+     */
+
     const paymentId =
-      req.body?.data?.id ||
-      req.query?.["data.id"] ||
-      req.query?.id;
+      req.query?.["data.id"];
 
     if (!paymentId) {
       return res.status(400).json({
-        error: "ID do pagamento não encontrado.",
+        error:
+          "ID do pagamento não encontrado.",
       });
     }
 
-    /*
-     * Busca os dados reais do pagamento
-     * diretamente no Mercado Pago.
-     */
-
-    const payment = await getPayment(paymentId);
-
     console.log(
-      "Pagamento recebido:",
-      payment.id,
-      payment.status,
-      payment.transaction_amount
+      "Webhook recebido. Payment ID:",
+      paymentId
     );
 
     /*
-     * Só libera produto quando o pagamento
-     * estiver realmente aprovado.
+     * Consulta o pagamento diretamente
+     * no Mercado Pago.
      */
 
-    if (payment.status !== "approved") {
+    const payment =
+      await getPayment(
+        paymentId
+      );
+
+    console.log(
+      "Pagamento:",
+      {
+        id: payment.id,
+
+        status:
+          payment.status,
+
+        amount:
+          payment.transaction_amount,
+
+        email:
+          payment.payer?.email,
+      }
+    );
+
+    /*
+     * Só libera acesso para pagamento aprovado.
+     */
+
+    if (
+      payment.status !==
+      "approved"
+    ) {
+      console.log(
+        "Pagamento ainda não aprovado:",
+        payment.status
+      );
+
       return res.status(200).json({
         received: true,
+
         processed: false,
-        status: payment.status,
+
+        status:
+          payment.status,
       });
     }
 
+    /*
+     * Email usado no pagamento.
+     */
+
     const email =
       payment.payer?.email ||
-      payment.additional_info?.payer?.email;
+      payment.additional_info
+        ?.payer?.email;
 
     if (!email) {
       throw new Error(
@@ -369,14 +524,16 @@ module.exports = async (req, res) => {
     }
 
     /*
-     * Identifica o produto pelo valor pago.
+     * Identifica o produto pelo valor.
      */
 
-    const amount = Number(
-      payment.transaction_amount
-    ).toFixed(2);
+    const amount =
+      Number(
+        payment.transaction_amount
+      ).toFixed(2);
 
-    const product = PRODUCTS[amount];
+    const product =
+      PRODUCTS[amount];
 
     if (!product) {
       throw new Error(
@@ -384,46 +541,93 @@ module.exports = async (req, res) => {
       );
     }
 
+    console.log(
+      "Produto identificado:",
+      product.slug
+    );
+
     /*
-     * Localiza o usuário cadastrado no Supabase.
+     * Procura o usuário no Supabase.
      */
 
-    const user = await findUserByEmail(email);
+    const user =
+      await findUserByEmail(
+        email
+      );
 
     if (!user) {
       console.error(
-        `Nenhum usuário encontrado para o email ${email}.`
+        "Usuário não encontrado:",
+        email
       );
+
+      /*
+       * Pagamento está aprovado,
+       * mas não podemos liberar acesso
+       * sem encontrar a conta.
+       */
 
       return res.status(200).json({
         received: true,
+
         processed: false,
+
         reason:
           "Usuário não encontrado no Supabase.",
+
+        email,
       });
     }
 
+    console.log(
+      "Usuário encontrado:",
+      user.id
+    );
+
     /*
-     * Evita registrar o mesmo pagamento duas vezes.
+     * Evita duplicar purchase.
      */
 
     const existingPurchase =
-      await findExistingPurchase(payment.id);
+      await findExistingPurchase(
+        payment.id
+      );
 
     if (!existingPurchase) {
+
       await createPurchase({
         userId: user.id,
-        productId: product.id,
-        paymentId: payment.id,
+
+        productId:
+          product.id,
+
+        paymentId:
+          payment.id,
+
         preferenceId:
-          payment.preference_id || null,
-        amount: Number(amount),
-        status: payment.status,
+          payment.preference_id ||
+          null,
+
+        amount:
+          Number(amount),
+
+        status:
+          payment.status,
       });
+
+      console.log(
+        "Purchase criada."
+      );
+
+    } else {
+
+      console.log(
+        "Purchase já existente. Não duplicando."
+      );
     }
 
     /*
-     * Libera o acesso ao produto.
+     * Libera o acesso.
      */
 
     await activateEntitlement(
@@ -432,33 +636,50 @@ module.exports = async (req, res) => {
     );
 
     console.log(
-      `Acesso liberado: ${email} → ${product.slug}`
+      "ACESSO LIBERADO:",
+      email,
+      product.slug
     );
+
+    /*
+     * Resposta final.
+     */
 
     return res.status(200).json({
       received: true,
+
       processed: true,
-      payment_id: payment.id,
-      product: product.slug,
-      user_id: user.id,
+
+      payment_id:
+        payment.id,
+
+      product:
+        product.slug,
+
+      user_id:
+        user.id,
     });
 
   } catch (error) {
+
     console.error(
       "Erro no webhook Mercado Pago:",
       error
     );
 
     /*
-     * Retorna 200 para evitar que o Mercado Pago
-     * fique reenviando indefinidamente enquanto
-     * investigamos o erro.
+     * Erro interno:
+     * 500 permite que o Mercado Pago
+     * possa reenviar a notificação.
      */
 
-    return res.status(200).json({
+    return res.status(500).json({
       received: true,
+
       processed: false,
-      error: error.message,
+
+      error:
+        error.message,
     });
   }
 };
