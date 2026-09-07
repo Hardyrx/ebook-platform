@@ -3,6 +3,13 @@ const {
   InvalidWebhookSignatureError,
 } = require("mercadopago");
 
+
+/*
+|--------------------------------------------------------------------------
+| CONFIGURAÇÕES
+|--------------------------------------------------------------------------
+*/
+
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -16,37 +23,53 @@ const MERCADOPAGO_WEBHOOK_SECRET =
   process.env.MERCADOPAGO_WEBHOOK_SECRET;
 
 
-/* =====================================================
-   PRODUTOS
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| PRODUTOS
+|--------------------------------------------------------------------------
+|
+| O Mercado Pago envia o valor pago.
+| Usamos o valor apenas para descobrir o SLUG.
+|
+| Depois buscamos o ID real do produto diretamente
+| no Supabase.
+|
+*/
 
 const PRODUCTS = {
-  "97.90": {
-    id: "fcdd57c5-05e8-4617-9256-f18acb888a0",
-    slug: "r1000-reais-por-dia",
+
+  "97.00": {
+    slug:
+      "r1000-reais-por-dia",
   },
 
   "199.90": {
-    id: "513095ae-0a1b-47d3-8595-615b059947c7",
-    slug: "r1000-reais-por-dia-agente",
+    slug:
+      "r1000-reais-por-dia-agente",
   },
+
 };
 
 
-/* =====================================================
-   SUPABASE REQUEST
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| SUPABASE REQUEST
+|--------------------------------------------------------------------------
+*/
 
 async function supabaseRequest(
   path,
   options = {}
 ) {
+
   return fetch(
     `${SUPABASE_URL}${path}`,
     {
+
       ...options,
 
       headers: {
+
         apikey:
           SUPABASE_SERVICE_ROLE_KEY,
 
@@ -57,26 +80,35 @@ async function supabaseRequest(
           "application/json",
 
         ...(options.headers || {}),
+
       },
+
     }
   );
+
 }
 
 
-/* =====================================================
-   VALIDAR ASSINATURA DO MERCADO PAGO
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| VALIDAR ASSINATURA DO MERCADO PAGO
+|--------------------------------------------------------------------------
+*/
 
-function verifyMercadoPagoSignature(req) {
+function verifyMercadoPagoSignature(
+  req
+) {
 
   if (
     !MERCADOPAGO_WEBHOOK_SECRET
   ) {
+
     console.error(
       "MERCADOPAGO_WEBHOOK_SECRET não configurado."
     );
 
     return false;
+
   }
 
 
@@ -85,14 +117,6 @@ function verifyMercadoPagoSignature(req) {
 
   const xRequestId =
     req.headers["x-request-id"];
-
-
-  /*
-   * O Mercado Pago envia o ID do pagamento
-   * na query string:
-   *
-   * ?data.id=123456
-   */
 
   const dataId =
     req.query?.["data.id"];
@@ -107,6 +131,7 @@ function verifyMercadoPagoSignature(req) {
     console.error(
       "Dados necessários para validar assinatura ausentes.",
       {
+
         hasSignature:
           !!xSignature,
 
@@ -114,10 +139,12 @@ function verifyMercadoPagoSignature(req) {
           !!xRequestId,
 
         dataId,
+
       }
     );
 
     return false;
+
   }
 
 
@@ -158,6 +185,7 @@ function verifyMercadoPagoSignature(req) {
       );
 
       return false;
+
     }
 
 
@@ -167,13 +195,17 @@ function verifyMercadoPagoSignature(req) {
     );
 
     return false;
+
   }
+
 }
 
 
-/* =====================================================
-   BUSCAR PAGAMENTO NO MERCADO PAGO
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| BUSCAR PAGAMENTO NO MERCADO PAGO
+|--------------------------------------------------------------------------
+*/
 
 async function getPayment(
   paymentId
@@ -183,12 +215,17 @@ async function getPayment(
     await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
       {
-        method: "GET",
+
+        method:
+          "GET",
 
         headers: {
+
           Authorization:
             `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+
         },
+
       }
     );
 
@@ -198,20 +235,75 @@ async function getPayment(
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao consultar pagamento ${paymentId}: ${response.status} ${text}`
     );
+
   }
 
 
   return response.json();
+
 }
 
 
-/* =====================================================
-   ENCONTRAR USUÁRIO PELO EMAIL
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| BUSCAR PRODUTO PELO SLUG
+|--------------------------------------------------------------------------
+*/
+
+async function getProductBySlug(
+  slug
+) {
+
+  const response =
+    await supabaseRequest(
+
+      `/rest/v1/products?slug=eq.${encodeURIComponent(
+        slug
+      )}&active=eq.true&select=id,name,slug,price&limit=1`
+
+    );
+
+
+  if (!response.ok) {
+
+    const text =
+      await response.text();
+
+    throw new Error(
+      `Erro ao consultar produto no Supabase: ${response.status} ${text}`
+    );
+
+  }
+
+
+  const products =
+    await response.json();
+
+
+  if (
+    !products.length
+  ) {
+
+    throw new Error(
+      `Produto não encontrado no Supabase: ${slug}`
+    );
+
+  }
+
+
+  return products[0];
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| ENCONTRAR USUÁRIO PELO EMAIL
+|--------------------------------------------------------------------------
+*/
 
 async function findUserByEmail(
   email
@@ -228,10 +320,10 @@ async function findUserByEmail(
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao consultar usuários do Supabase: ${response.status} ${text}`
     );
+
   }
 
 
@@ -251,12 +343,15 @@ async function findUserByEmail(
           email.toLowerCase()
     ) || null
   );
+
 }
 
 
-/* =====================================================
-   VERIFICAR SE PURCHASE JÁ EXISTE
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| VERIFICAR PURCHASE EXISTENTE
+|--------------------------------------------------------------------------
+*/
 
 async function findExistingPurchase(
   paymentId
@@ -264,9 +359,11 @@ async function findExistingPurchase(
 
   const response =
     await supabaseRequest(
+
       `/rest/v1/purchases?mp_payment_id=eq.${encodeURIComponent(
         String(paymentId)
       )}&select=id&limit=1`
+
     );
 
 
@@ -275,10 +372,10 @@ async function findExistingPurchase(
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao consultar compra existente: ${response.status} ${text}`
     );
+
   }
 
 
@@ -287,12 +384,15 @@ async function findExistingPurchase(
 
 
   return data[0] || null;
+
 }
 
 
-/* =====================================================
-   CRIAR PURCHASE
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| CRIAR PURCHASE
+|--------------------------------------------------------------------------
+*/
 
 async function createPurchase({
   userId,
@@ -307,34 +407,40 @@ async function createPurchase({
     await supabaseRequest(
       "/rest/v1/purchases",
       {
-        method: "POST",
+
+        method:
+          "POST",
 
         headers: {
+
           Prefer:
             "return=representation",
+
         },
 
-        body: JSON.stringify({
+        body:
+          JSON.stringify({
 
-          user_id:
-            userId,
+            user_id:
+              userId,
 
-          product_id:
-            productId,
+            product_id:
+              productId,
 
-          mp_payment_id:
-            String(paymentId),
+            mp_payment_id:
+              String(paymentId),
 
-          mp_preference_id:
-            preferenceId
-              ? String(preferenceId)
-              : null,
+            mp_preference_id:
+              preferenceId
+                ? String(preferenceId)
+                : null,
 
-          amount,
+            amount,
 
-          status,
+            status,
 
-        }),
+          }),
+
       }
     );
 
@@ -344,20 +450,23 @@ async function createPurchase({
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao criar purchase: ${response.status} ${text}`
     );
+
   }
 
 
   return response.json();
+
 }
 
 
-/* =====================================================
-   BUSCAR ENTITLEMENT
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| BUSCAR ENTITLEMENT
+|--------------------------------------------------------------------------
+*/
 
 async function findEntitlement(
   userId,
@@ -366,11 +475,13 @@ async function findEntitlement(
 
   const response =
     await supabaseRequest(
+
       `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(
         userId
       )}&product_id=eq.${encodeURIComponent(
         productId
       )}&select=id,active&limit=1`
+
     );
 
 
@@ -379,10 +490,10 @@ async function findEntitlement(
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao consultar entitlement: ${response.status} ${text}`
     );
+
   }
 
 
@@ -391,12 +502,15 @@ async function findEntitlement(
 
 
   return data[0] || null;
+
 }
 
 
-/* =====================================================
-   ATIVAR ENTITLEMENT
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| ATIVAR ENTITLEMENT
+|--------------------------------------------------------------------------
+*/
 
 async function activateEntitlement(
   userId,
@@ -411,35 +525,45 @@ async function activateEntitlement(
 
 
   /*
-   * Se já existe entitlement,
-   * apenas ativa novamente.
-   */
+  |--------------------------------------------------------------------------
+  | JÁ EXISTE
+  |--------------------------------------------------------------------------
+  */
 
   if (existing) {
 
     const response =
       await supabaseRequest(
+
         `/rest/v1/entitlements?id=eq.${encodeURIComponent(
           existing.id
         )}`,
+
         {
-          method: "PATCH",
+
+          method:
+            "PATCH",
 
           headers: {
+
             Prefer:
               "return=representation",
+
           },
 
-          body: JSON.stringify({
+          body:
+            JSON.stringify({
 
-            active:
-              true,
+              active:
+                true,
 
-            revoked_at:
-              null,
+              revoked_at:
+                null,
 
-          }),
+            }),
+
         }
+
       );
 
 
@@ -448,10 +572,10 @@ async function activateEntitlement(
       const text =
         await response.text();
 
-
       throw new Error(
         `Erro ao reativar entitlement: ${response.status} ${text}`
       );
+
     }
 
 
@@ -461,43 +585,51 @@ async function activateEntitlement(
 
 
     return;
+
   }
 
 
   /*
-   * Caso não exista,
-   * cria um novo entitlement.
-   */
+  |--------------------------------------------------------------------------
+  | CRIAR NOVO
+  |--------------------------------------------------------------------------
+  */
 
   const response =
     await supabaseRequest(
       "/rest/v1/entitlements",
       {
-        method: "POST",
+
+        method:
+          "POST",
 
         headers: {
+
           Prefer:
             "return=representation",
+
         },
 
-        body: JSON.stringify({
+        body:
+          JSON.stringify({
 
-          user_id:
-            userId,
+            user_id:
+              userId,
 
-          product_id:
-            productId,
+            product_id:
+              productId,
 
-          active:
-            true,
+            active:
+              true,
 
-          granted_at:
-            new Date().toISOString(),
+            granted_at:
+              new Date().toISOString(),
 
-          revoked_at:
-            null,
+            revoked_at:
+              null,
 
-        }),
+          }),
+
       }
     );
 
@@ -507,22 +639,25 @@ async function activateEntitlement(
     const text =
       await response.text();
 
-
     throw new Error(
       `Erro ao criar entitlement: ${response.status} ${text}`
     );
+
   }
 
 
   console.log(
     "Novo entitlement criado."
   );
+
 }
 
 
-/* =====================================================
-   WEBHOOK MERCADO PAGO
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| WEBHOOK MERCADO PAGO
+|--------------------------------------------------------------------------
+*/
 
 module.exports = async (
   req,
@@ -530,25 +665,33 @@ module.exports = async (
 ) => {
 
   /*
-   * O Mercado Pago envia POST.
-   */
+  |--------------------------------------------------------------------------
+  | MÉTODO
+  |--------------------------------------------------------------------------
+  */
 
   if (
-    req.method !== "POST"
+    req.method !==
+    "POST"
   ) {
 
     return res.status(405).json({
+
       error:
         "Método não permitido",
+
     });
+
   }
 
 
   try {
 
-    /* =================================================
-       TIPO DO EVENTO
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | TIPO DO EVENTO
+    |--------------------------------------------------------------------------
+    */
 
     const type =
       req.body?.type ||
@@ -562,11 +705,14 @@ module.exports = async (
 
 
     /*
-     * Ignora eventos que não sejam payment.
-     */
+    |--------------------------------------------------------------------------
+    | IGNORAR EVENTOS QUE NÃO SÃO PAYMENT
+    |--------------------------------------------------------------------------
+    */
 
     if (
-      type !== "payment"
+      type !==
+      "payment"
     ) {
 
       return res.status(200).json({
@@ -580,12 +726,15 @@ module.exports = async (
         type,
 
       });
+
     }
 
 
-    /* =================================================
-       VALIDAR ASSINATURA
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDAR ASSINATURA
+    |--------------------------------------------------------------------------
+    */
 
     const signatureValid =
       verifyMercadoPagoSignature(
@@ -606,12 +755,15 @@ module.exports = async (
           "Assinatura inválida.",
 
       });
+
     }
 
 
-    /* =================================================
-       ID DO PAGAMENTO
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | ID DO PAGAMENTO
+    |--------------------------------------------------------------------------
+    */
 
     const paymentId =
       req.query?.["data.id"];
@@ -625,6 +777,7 @@ module.exports = async (
           "ID do pagamento não encontrado.",
 
       });
+
     }
 
 
@@ -634,19 +787,11 @@ module.exports = async (
     );
 
 
-    /* =================================================
-       TESTE DO MERCADO PAGO
-    ================================================= */
-
     /*
-     * O botão "Simular notificações" do Mercado Pago
-     * usa o ID fictício 123456.
-     *
-     * A assinatura já foi validada.
-     *
-     * Portanto não precisamos consultar
-     * esse pagamento inexistente na API.
-     */
+    |--------------------------------------------------------------------------
+    | SIMULAÇÃO DO MERCADO PAGO
+    |--------------------------------------------------------------------------
+    */
 
     if (
       String(paymentId) ===
@@ -673,12 +818,15 @@ module.exports = async (
           "Notificação simulada recebida com sucesso.",
 
       });
+
     }
 
 
-    /* =================================================
-       BUSCAR PAGAMENTO REAL
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | BUSCAR PAGAMENTO REAL
+    |--------------------------------------------------------------------------
+    */
 
     const payment =
       await getPayment(
@@ -689,6 +837,7 @@ module.exports = async (
     console.log(
       "Pagamento encontrado:",
       {
+
         id:
           payment.id,
 
@@ -705,14 +854,11 @@ module.exports = async (
     );
 
 
-    /* =================================================
-       VERIFICAR STATUS
-    ================================================= */
-
     /*
-     * Só libera acesso quando o pagamento
-     * estiver aprovado.
-     */
+    |--------------------------------------------------------------------------
+    | SÓ LIBERAR PAGAMENTO APROVADO
+    |--------------------------------------------------------------------------
+    */
 
     if (
       payment.status !==
@@ -737,12 +883,15 @@ module.exports = async (
           payment.status,
 
       });
+
     }
 
 
-    /* =================================================
-       EMAIL DO COMPRADOR
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | EMAIL DO COMPRADOR
+    |--------------------------------------------------------------------------
+    */
 
     const email =
       payment.payer?.email ||
@@ -755,6 +904,7 @@ module.exports = async (
       throw new Error(
         "Pagamento aprovado sem email do comprador."
       );
+
     }
 
 
@@ -764,9 +914,11 @@ module.exports = async (
     );
 
 
-    /* =================================================
-       IDENTIFICAR PRODUTO
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | IDENTIFICAR PRODUTO PELO VALOR
+    |--------------------------------------------------------------------------
+    */
 
     const amount =
       Number(
@@ -774,27 +926,62 @@ module.exports = async (
       ).toFixed(2);
 
 
-    const product =
+    const productConfig =
       PRODUCTS[amount];
 
 
-    if (!product) {
+    if (!productConfig) {
 
       throw new Error(
         `Valor de pagamento não reconhecido: ${amount}`
       );
+
     }
 
 
     console.log(
-      "Produto identificado:",
-      product.slug
+      "Slug identificado:",
+      productConfig.slug
     );
 
 
-    /* =================================================
-       ENCONTRAR USUÁRIO
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | BUSCAR PRODUTO REAL NO SUPABASE
+    |--------------------------------------------------------------------------
+    */
+
+    const product =
+      await getProductBySlug(
+        productConfig.slug
+      );
+
+
+    console.log(
+      "Produto encontrado no Supabase:",
+      {
+
+        id:
+          product.id,
+
+        name:
+          product.name,
+
+        slug:
+          product.slug,
+
+        price:
+          product.price,
+
+      }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENCONTRAR USUÁRIO
+    |--------------------------------------------------------------------------
+    */
 
     const user =
       await findUserByEmail(
@@ -810,14 +997,6 @@ module.exports = async (
       );
 
 
-      /*
-       * O pagamento foi aprovado,
-       * mas não encontramos uma conta
-       * correspondente no Supabase.
-       *
-       * Não liberamos acesso automaticamente.
-       */
-
       return res.status(200).json({
 
         received:
@@ -832,6 +1011,7 @@ module.exports = async (
         email,
 
       });
+
     }
 
 
@@ -841,9 +1021,11 @@ module.exports = async (
     );
 
 
-    /* =================================================
-       VERIFICAR PURCHASE DUPLICADA
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFICAR PURCHASE DUPLICADA
+    |--------------------------------------------------------------------------
+    */
 
     const existingPurchase =
       await findExistingPurchase(
@@ -883,17 +1065,21 @@ module.exports = async (
         "Purchase criada com sucesso."
       );
 
+
     } else {
 
       console.log(
         "Purchase já existe. Não duplicando."
       );
+
     }
 
 
-    /* =================================================
-       LIBERAR ACESSO
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | LIBERAR ACESSO
+    |--------------------------------------------------------------------------
+    */
 
     await activateEntitlement(
 
@@ -903,6 +1089,12 @@ module.exports = async (
 
     );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG FINAL
+    |--------------------------------------------------------------------------
+    */
 
     console.log(
       "===================================="
@@ -928,13 +1120,20 @@ module.exports = async (
     );
 
     console.log(
+      "Valor:",
+      amount
+    );
+
+    console.log(
       "===================================="
     );
 
 
-    /* =================================================
-       RESPOSTA FINAL
-    ================================================= */
+    /*
+    |--------------------------------------------------------------------------
+    | RESPOSTA FINAL
+    |--------------------------------------------------------------------------
+    */
 
     return res.status(200).json({
 
@@ -949,6 +1148,9 @@ module.exports = async (
 
       product:
         product.slug,
+
+      amount:
+        Number(amount),
 
       user_id:
         user.id,
@@ -976,11 +1178,13 @@ module.exports = async (
 
 
     /*
-     * Erro real no servidor.
-     *
-     * Retornamos 500 para que o Mercado Pago
-     * possa tentar novamente.
-     */
+    |--------------------------------------------------------------------------
+    | RETORNAR 500
+    |--------------------------------------------------------------------------
+    |
+    | O Mercado Pago poderá tentar novamente.
+    |
+    */
 
     return res.status(500).json({
 
@@ -994,5 +1198,7 @@ module.exports = async (
         error.message,
 
     });
+
   }
+
 };
