@@ -7,36 +7,54 @@ const SUPABASE_SERVICE_ROLE_KEY =
 
 /*
 |--------------------------------------------------------------------------
-| PRODUTOS QUE DÃO ACESSO AO EBOOK
+| PRODUTOS
 |--------------------------------------------------------------------------
 */
 
-const EBOOK_PRODUCTS = {
+const PRODUCTS = {
+
   "fcdd57c5-05e8-4617-9256-f18acb888a0": {
-    slug: "r1000-reais-por-dia",
-    file: "ebooks/r1000-reais-por-dia.pdf",
+    ebook: "ebooks/r1000-reais-por-dia.pdf",
+    agent: false,
   },
 
   "513095ae-0a1b-47d3-8595-615b059947c7": {
-    slug: "r1000-reais-por-dia-agente",
-    file: "ebooks/r1000-reais-por-dia.pdf",
+    ebook: "ebooks/r1000-reais-por-dia.pdf",
+    agent: true,
   },
+
 };
 
 
 /*
 |--------------------------------------------------------------------------
-| REQUISIÇÃO AO SUPABASE
+| AGENTE TIEEPO 1KD
 |--------------------------------------------------------------------------
 */
 
-async function supabaseRequest(path, options = {}) {
+const AGENT_URL =
+  "https://chatgpt.com/g/g-6845f51d6648819184d0561733e87681-tieepo-1kdtm";
+
+
+/*
+|--------------------------------------------------------------------------
+| REQUISIÇÃO SUPABASE
+|--------------------------------------------------------------------------
+*/
+
+async function supabaseRequest(
+  path,
+  options = {}
+) {
+
   return fetch(
     `${SUPABASE_URL}${path}`,
     {
+
       ...options,
 
       headers: {
+
         apikey:
           SUPABASE_SERVICE_ROLE_KEY,
 
@@ -47,49 +65,61 @@ async function supabaseRequest(path, options = {}) {
           "application/json",
 
         ...(options.headers || {}),
+
       },
+
     }
   );
+
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| IDENTIFICAR USUÁRIO PELO TOKEN
+| IDENTIFICAR USUÁRIO
 |--------------------------------------------------------------------------
 */
 
-async function getUserFromToken(accessToken) {
+async function getUserFromToken(
+  accessToken
+) {
 
   const response =
     await fetch(
       `${SUPABASE_URL}/auth/v1/user`,
       {
+
         method: "GET",
 
         headers: {
+
           apikey:
             SUPABASE_SERVICE_ROLE_KEY,
 
           Authorization:
             `Bearer ${accessToken}`,
+
         },
+
       }
     );
 
 
   if (!response.ok) {
+
     return null;
+
   }
 
 
   return response.json();
+
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| VERIFICAR SE USUÁRIO POSSUI ACESSO
+| VERIFICAR ACESSO AO PRODUTO
 |--------------------------------------------------------------------------
 */
 
@@ -100,11 +130,13 @@ async function hasProductAccess(
 
   const response =
     await supabaseRequest(
+
       `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(
         userId
       )}&product_id=eq.${encodeURIComponent(
         productId
       )}&active=eq.true&select=id,product_id`
+
     );
 
 
@@ -116,6 +148,7 @@ async function hasProductAccess(
     throw new Error(
       `Erro ao verificar acesso: ${response.status} ${text}`
     );
+
   }
 
 
@@ -124,27 +157,37 @@ async function hasProductAccess(
 
 
   return data.length > 0;
+
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| CRIAR URL TEMPORÁRIA DO PDF
+| CRIAR URL ASSINADA DO EBOOK
 |--------------------------------------------------------------------------
 */
 
-async function createSignedUrl(filePath) {
+async function createSignedUrl(
+  filePath
+) {
 
   const response =
     await supabaseRequest(
+
       `/storage/v1/object/sign/conteudos/${filePath}`,
+
       {
+
         method: "POST",
 
         body: JSON.stringify({
+
           expiresIn: 300,
+
         }),
+
       }
+
     );
 
 
@@ -156,6 +199,7 @@ async function createSignedUrl(filePath) {
     throw new Error(
       `Erro ao criar URL do ebook: ${response.status} ${text}`
     );
+
   }
 
 
@@ -173,17 +217,21 @@ async function createSignedUrl(filePath) {
     throw new Error(
       "Supabase não retornou a URL assinada."
     );
+
   }
 
 
   if (
     signedPath.startsWith("http")
   ) {
+
     return signedPath;
+
   }
 
 
   return `${SUPABASE_URL}/storage/v1${signedPath}`;
+
 }
 
 
@@ -198,6 +246,7 @@ module.exports = async (
   res
 ) => {
 
+
   /*
   |--------------------------------------------------------------------------
   | MÉTODO
@@ -207,17 +256,21 @@ module.exports = async (
   if (req.method !== "GET") {
 
     return res.status(405).json({
+
       error:
         "Método não permitido",
+
     });
+
   }
 
 
   try {
 
+
     /*
     |--------------------------------------------------------------------------
-    | TOKEN
+    | AUTORIZAÇÃO
     |--------------------------------------------------------------------------
     */
 
@@ -233,9 +286,12 @@ module.exports = async (
     ) {
 
       return res.status(401).json({
+
         error:
           "Usuário não autenticado.",
+
       });
+
     }
 
 
@@ -258,15 +314,18 @@ module.exports = async (
     if (!user) {
 
       return res.status(401).json({
+
         error:
           "Sessão inválida ou expirada.",
+
       });
+
     }
 
 
     /*
     |--------------------------------------------------------------------------
-    | PRODUTO SOLICITADO
+    | PRODUTO
     |--------------------------------------------------------------------------
     */
 
@@ -276,13 +335,41 @@ module.exports = async (
 
     if (
       !productId ||
-      !EBOOK_PRODUCTS[productId]
+      !PRODUCTS[productId]
     ) {
 
       return res.status(400).json({
+
         error:
           "Produto inválido.",
+
       });
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | TIPO DE CONTEÚDO
+    |--------------------------------------------------------------------------
+    */
+
+    const content =
+      req.query.content || "ebook";
+
+
+    if (
+      content !== "ebook" &&
+      content !== "agent"
+    ) {
+
+      return res.status(400).json({
+
+        error:
+          "Conteúdo inválido.",
+
+      });
+
     }
 
 
@@ -302,29 +389,65 @@ module.exports = async (
     if (!allowed) {
 
       return res.status(403).json({
+
         error:
           "Você não possui acesso a este conteúdo.",
+
       });
+
     }
 
 
     /*
     |--------------------------------------------------------------------------
-    | ARQUIVO DO PRODUTO
+    | AGENTE
     |--------------------------------------------------------------------------
     */
 
-    const filePath =
-      EBOOK_PRODUCTS[
-        productId
-      ].file;
+    if (
+      content === "agent"
+    ) {
+
+
+      if (
+        !PRODUCTS[productId].agent
+      ) {
+
+        return res.status(403).json({
+
+          error:
+            "O Agente de Implementação não está incluído neste produto.",
+
+        });
+
+      }
+
+
+      return res.status(200).json({
+
+        success:
+          true,
+
+        type:
+          "agent",
+
+        url:
+          AGENT_URL,
+
+      });
+
+    }
 
 
     /*
     |--------------------------------------------------------------------------
-    | URL TEMPORÁRIA
+    | EBOOK
     |--------------------------------------------------------------------------
     */
+
+    const filePath =
+      PRODUCTS[productId].ebook;
+
 
     const signedUrl =
       await createSignedUrl(
@@ -332,24 +455,25 @@ module.exports = async (
       );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | RESPOSTA
-    |--------------------------------------------------------------------------
-    */
-
     return res.status(200).json({
 
-      success: true,
+      success:
+        true,
 
-      expires_in: 300,
+      type:
+        "ebook",
 
-      url: signedUrl,
+      expires_in:
+        300,
+
+      url:
+        signedUrl,
 
     });
 
 
   } catch (error) {
+
 
     console.error(
       "Erro ao abrir conteúdo:",
@@ -358,8 +482,12 @@ module.exports = async (
 
 
     return res.status(500).json({
+
       error:
         "Não foi possível liberar o conteúdo.",
+
     });
+
   }
+
 };
