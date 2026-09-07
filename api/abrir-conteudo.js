@@ -5,24 +5,32 @@ const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 
-/* =====================================================
-   PRODUTOS QUE DÃO ACESSO AO EBOOK
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| PRODUTOS QUE DÃO ACESSO AO EBOOK
+|--------------------------------------------------------------------------
+*/
 
-const EBOOK_PRODUCTS = [
-  "fcdd57c5-05e8-4617-9256-f18acb888a0",
-  "513095ae-0a1b-47d3-8595-615b059947c7",
-];
+const EBOOK_PRODUCTS = {
+  "fcdd57c5-05e8-4617-9256-f18acb888a0": {
+    slug: "r1000-reais-por-dia",
+    file: "ebooks/r1000-reais-por-dia.pdf",
+  },
+
+  "513095ae-0a1b-47d3-8595-615b059947c7": {
+    slug: "r1000-reais-por-dia-agente",
+    file: "ebooks/r1000-reais-por-dia.pdf",
+  },
+};
 
 
-/* =====================================================
-   REQUEST SUPABASE
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| REQUISIÇÃO AO SUPABASE
+|--------------------------------------------------------------------------
+*/
 
-async function supabaseRequest(
-  path,
-  options = {}
-) {
+async function supabaseRequest(path, options = {}) {
   return fetch(
     `${SUPABASE_URL}${path}`,
     {
@@ -45,13 +53,14 @@ async function supabaseRequest(
 }
 
 
-/* =====================================================
-   PEGAR USUÁRIO LOGADO
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| IDENTIFICAR USUÁRIO PELO TOKEN
+|--------------------------------------------------------------------------
+*/
 
-async function getUserFromToken(
-  accessToken
-) {
+async function getUserFromToken(accessToken) {
+
   const response =
     await fetch(
       `${SUPABASE_URL}/auth/v1/user`,
@@ -78,22 +87,24 @@ async function getUserFromToken(
 }
 
 
-/* =====================================================
-   VERIFICAR ENTITLEMENT
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| VERIFICAR SE USUÁRIO POSSUI ACESSO
+|--------------------------------------------------------------------------
+*/
 
-async function hasEbookAccess(
-  userId
+async function hasProductAccess(
+  userId,
+  productId
 ) {
-  const productFilter =
-    EBOOK_PRODUCTS.join(",");
-
 
   const response =
     await supabaseRequest(
       `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(
         userId
-      )}&active=eq.true&product_id=in.(${productFilter})&select=id,product_id`
+      )}&product_id=eq.${encodeURIComponent(
+        productId
+      )}&active=eq.true&select=id,product_id`
     );
 
 
@@ -116,15 +127,17 @@ async function hasEbookAccess(
 }
 
 
-/* =====================================================
-   CRIAR URL TEMPORÁRIA
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| CRIAR URL TEMPORÁRIA DO PDF
+|--------------------------------------------------------------------------
+*/
 
-async function createSignedUrl() {
+async function createSignedUrl(filePath) {
 
   const response =
     await supabaseRequest(
-      "/storage/v1/object/sign/conteudos/ebooks/r1000-reais-por-dia.pdf",
+      `/storage/v1/object/sign/conteudos/${filePath}`,
       {
         method: "POST",
 
@@ -150,14 +163,6 @@ async function createSignedUrl() {
     await response.json();
 
 
-  /*
-   * O Supabase retorna:
-   *
-   * { signedURL: "/storage/v1/object/sign/..." }
-   *
-   * Transformamos em URL completa.
-   */
-
   const signedPath =
     data.signedURL ||
     data.signedUrl;
@@ -171,22 +176,22 @@ async function createSignedUrl() {
   }
 
 
-  const fullUrl =
+  if (
     signedPath.startsWith("http")
-      ? signedPath
-      : `${SUPABASE_URL}/storage/v1${signedPath.replace(
-          "/storage/v1",
-          ""
-        )}`;
+  ) {
+    return signedPath;
+  }
 
 
-  return fullUrl;
+  return `${SUPABASE_URL}/storage/v1${signedPath}`;
 }
 
 
-/* =====================================================
-   API
-===================================================== */
+/*
+|--------------------------------------------------------------------------
+| API
+|--------------------------------------------------------------------------
+*/
 
 module.exports = async (
   req,
@@ -194,8 +199,10 @@ module.exports = async (
 ) => {
 
   /*
-   * Somente GET.
-   */
+  |--------------------------------------------------------------------------
+  | MÉTODO
+  |--------------------------------------------------------------------------
+  */
 
   if (req.method !== "GET") {
 
@@ -209,10 +216,10 @@ module.exports = async (
   try {
 
     /*
-     * Pega o Authorization:
-     *
-     * Bearer TOKEN
-     */
+    |--------------------------------------------------------------------------
+    | TOKEN
+    |--------------------------------------------------------------------------
+    */
 
     const authorization =
       req.headers.authorization;
@@ -233,14 +240,14 @@ module.exports = async (
 
 
     const accessToken =
-      authorization.substring(
-        7
-      );
+      authorization.substring(7);
 
 
     /*
-     * Descobre quem está logado.
-     */
+    |--------------------------------------------------------------------------
+    | USUÁRIO
+    |--------------------------------------------------------------------------
+    */
 
     const user =
       await getUserFromToken(
@@ -258,12 +265,37 @@ module.exports = async (
 
 
     /*
-     * Verifica se comprou.
-     */
+    |--------------------------------------------------------------------------
+    | PRODUTO SOLICITADO
+    |--------------------------------------------------------------------------
+    */
+
+    const productId =
+      req.query.product_id;
+
+
+    if (
+      !productId ||
+      !EBOOK_PRODUCTS[productId]
+    ) {
+
+      return res.status(400).json({
+        error:
+          "Produto inválido.",
+      });
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFICAR COMPRA
+    |--------------------------------------------------------------------------
+    */
 
     const allowed =
-      await hasEbookAccess(
-        user.id
+      await hasProductAccess(
+        user.id,
+        productId
       );
 
 
@@ -277,27 +309,42 @@ module.exports = async (
 
 
     /*
-     * Cria URL temporária de 5 minutos.
-     */
+    |--------------------------------------------------------------------------
+    | ARQUIVO DO PRODUTO
+    |--------------------------------------------------------------------------
+    */
 
-    const signedUrl =
-      await createSignedUrl();
+    const filePath =
+      EBOOK_PRODUCTS[
+        productId
+      ].file;
 
 
     /*
-     * Entrega somente a URL temporária.
-     */
+    |--------------------------------------------------------------------------
+    | URL TEMPORÁRIA
+    |--------------------------------------------------------------------------
+    */
+
+    const signedUrl =
+      await createSignedUrl(
+        filePath
+      );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESPOSTA
+    |--------------------------------------------------------------------------
+    */
 
     return res.status(200).json({
 
-      success:
-        true,
+      success: true,
 
-      expires_in:
-        300,
+      expires_in: 300,
 
-      url:
-        signedUrl,
+      url: signedUrl,
 
     });
 
@@ -311,10 +358,8 @@ module.exports = async (
 
 
     return res.status(500).json({
-
       error:
         "Não foi possível liberar o conteúdo.",
-
     });
   }
 };
