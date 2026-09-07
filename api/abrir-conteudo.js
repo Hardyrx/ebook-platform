@@ -7,20 +7,34 @@ const SUPABASE_SERVICE_ROLE_KEY =
 
 /*
 |--------------------------------------------------------------------------
-| PRODUTOS
+| PRODUTOS E ACESSOS
 |--------------------------------------------------------------------------
 */
 
 const PRODUCTS = {
 
+  // R$ 97,90
   "fcdd57c5-05e8-4617-9256-f18acb888a0": {
-    ebook: "ebooks/r1000-reais-por-dia.pdf",
-    agent: false,
+
+    ebook:
+      "ebooks/r1000-reais-por-dia.pdf",
+
+    agent:
+      false,
+
   },
 
+
+  // R$ 199,90
+  // Ebook + TIEEPO 1KD
   "513095ae-0a1b-47d3-8595-615b059947c7": {
-    ebook: "ebooks/r1000-reais-por-dia.pdf",
-    agent: true,
+
+    ebook:
+      "ebooks/r1000-reais-por-dia.pdf",
+
+    agent:
+      true,
+
   },
 
 };
@@ -28,7 +42,7 @@ const PRODUCTS = {
 
 /*
 |--------------------------------------------------------------------------
-| AGENTE TIEEPO 1KD
+| URL DO TIEEPO 1KD
 |--------------------------------------------------------------------------
 */
 
@@ -38,7 +52,7 @@ const AGENT_URL =
 
 /*
 |--------------------------------------------------------------------------
-| REQUISIÇÃO SUPABASE
+| REQUISIÇÃO AO SUPABASE
 |--------------------------------------------------------------------------
 */
 
@@ -76,7 +90,7 @@ async function supabaseRequest(
 
 /*
 |--------------------------------------------------------------------------
-| IDENTIFICAR USUÁRIO
+| IDENTIFICAR USUÁRIO PELO TOKEN
 |--------------------------------------------------------------------------
 */
 
@@ -89,7 +103,8 @@ async function getUserFromToken(
       `${SUPABASE_URL}/auth/v1/user`,
       {
 
-        method: "GET",
+        method:
+          "GET",
 
         headers: {
 
@@ -119,7 +134,7 @@ async function getUserFromToken(
 
 /*
 |--------------------------------------------------------------------------
-| VERIFICAR ACESSO AO PRODUTO
+| VERIFICAR SE USUÁRIO POSSUI O PRODUTO
 |--------------------------------------------------------------------------
 */
 
@@ -163,7 +178,7 @@ async function hasProductAccess(
 
 /*
 |--------------------------------------------------------------------------
-| CRIAR URL ASSINADA DO EBOOK
+| CRIAR URL TEMPORÁRIA DO EBOOK
 |--------------------------------------------------------------------------
 */
 
@@ -178,13 +193,16 @@ async function createSignedUrl(
 
       {
 
-        method: "POST",
+        method:
+          "POST",
 
-        body: JSON.stringify({
+        body:
+          JSON.stringify({
 
-          expiresIn: 300,
+            expiresIn:
+              300,
 
-        }),
+          }),
 
       }
 
@@ -222,7 +240,9 @@ async function createSignedUrl(
 
 
   if (
-    signedPath.startsWith("http")
+    signedPath.startsWith(
+      "http"
+    )
   ) {
 
     return signedPath;
@@ -253,7 +273,9 @@ module.exports = async (
   |--------------------------------------------------------------------------
   */
 
-  if (req.method !== "GET") {
+  if (
+    req.method !== "GET"
+  ) {
 
     return res.status(405).json({
 
@@ -270,7 +292,7 @@ module.exports = async (
 
     /*
     |--------------------------------------------------------------------------
-    | AUTORIZAÇÃO
+    | TOKEN DE AUTENTICAÇÃO
     |--------------------------------------------------------------------------
     */
 
@@ -355,7 +377,8 @@ module.exports = async (
     */
 
     const content =
-      req.query.content || "ebook";
+      req.query.content ||
+      "ebook";
 
 
     if (
@@ -375,7 +398,7 @@ module.exports = async (
 
     /*
     |--------------------------------------------------------------------------
-    | VERIFICAR COMPRA
+    | VERIFICAR SE COMPROU
     |--------------------------------------------------------------------------
     */
 
@@ -409,8 +432,15 @@ module.exports = async (
     ) {
 
 
+      /*
+      |----------------------------------------------------------------------
+      | CONFIRMAR QUE O PRODUTO INCLUI O AGENTE
+      |----------------------------------------------------------------------
+      */
+
       if (
-        !PRODUCTS[productId].agent
+        PRODUCTS[productId].agent !==
+        true
       ) {
 
         return res.status(403).json({
@@ -422,6 +452,12 @@ module.exports = async (
 
       }
 
+
+      /*
+      |----------------------------------------------------------------------
+      | ENTREGAR TIEEPO 1KD
+      |----------------------------------------------------------------------
+      */
 
       return res.status(200).json({
 
@@ -446,14 +482,28 @@ module.exports = async (
     */
 
     const filePath =
-      PRODUCTS[productId].ebook;
+      PRODUCTS[
+        productId
+      ].ebook;
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | GERAR URL ASSINADA
+    |--------------------------------------------------------------------------
+    */
 
     const signedUrl =
       await createSignedUrl(
         filePath
       );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENTREGAR EBOOK
+    |--------------------------------------------------------------------------
+    */
 
     return res.status(200).json({
 
